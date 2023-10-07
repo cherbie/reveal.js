@@ -921,7 +921,7 @@ Consumed: 4
 				<!-- END CONDVAR -->
 			</section>
 
-			<section id="condvar">
+			<section id="rwlock">
 				<h2>Read-Write Lock</h2>
 
 				<aside class="notes" data-markdown>
@@ -1049,6 +1049,151 @@ Final sharedData value: 5
 					<!-- END C++ RWLock OUTPUT -->
 				</section>
 				<!-- END RWLock -->
+			</section>
+
+			<section id="barrier">
+				<h2>Barrier Synchronization</h2>
+
+				<aside class="notes" data-markdown>
+					-
+				</aside>
+				<section id="rust-barrier">
+					<h4>Rust</h4>
+					<pre><code class="language-rust" data-trim data-noescape data-line-numbers="3|7|11-12|17-23|14"><script type="text/template">
+#[cfg(test)]
+mod tests {
+	use std::sync::{Arc, Barrier};
+	use std::thread;
+
+	#[test]
+	fn test_barrier_thread_synchronisation() {
+		const NUM_THREADS: usize = 10;
+		let mut thread_handles = Vec::with_capacity(NUM_THREADS);
+
+		// create shared barrier across NUM_THREADS
+		let barrier = Arc::new(Barrier::new(NUM_THREADS));
+
+		for _ in 0..NUM_THREADS {
+			let thread_barrier = Arc::clone(&barrier);
+
+			// the same messages will be printed together.
+			// you will NOT see any interleaving.
+			let thread_handle = thread::spawn(move || {
+				println!("before wait");
+				thread_barrier.wait();
+				println!("after wait");
+			});
+			thread_handles.push(thread_handle)
+		}
+
+		// gracefully wait for threads to finish.
+		for handle in thread_handles {
+			handle.join().unwrap();
+		}
+	}
+}						
+					</script></code></pre>
+
+					<aside class="notes" data-markdown>
+						-
+					</aside>
+					<!-- section id="rust-barrier" -->
+				</section>
+
+				<section id="rust-barrier-test">
+					<h4>Rust Output</h4>
+
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers><script type="text/template">
+test barrier::tests::test_barrier_thread_synchronisation ... before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+before wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+after wait
+ok
+						</script></code></pre>
+				</section>
+				<section id="c++-barrier">
+					<h4>C++</h4>
+					<pre><code class="language-c++" data-trim data-noescape data-line-numbers="4|9-10|12-21|16-17|24-39|28-32"><script type="text/template">
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <barrier>
+#include <gtest/gtest.h>
+
+namespace
+{
+	const int NUM_THREADS = 5;
+	std::barrier barrier(NUM_THREADS);
+
+	void doWork(int id)
+	{
+		std::cout << "Thread " << id << " is doing some work before the barrier." << std::endl;
+
+		// All threads will wait here until all threads have reached this point
+		barrier.arrive_and_wait();
+
+		// This part of the code will execute only after all threads have reached the barrier
+		std::cout << "Thread " << id << " is doing some work after the barrier." << std::endl;
+	}
+} // namespace ::
+
+TEST(BarrierExample, TestBarrierSynchronization)
+{
+	std::vector<std::thread> thread_handles;
+
+	// Create and start threads
+	for (int i = 0; i < ::NUM_THREADS; ++i)
+	{
+		thread_handles.emplace_back(::doWork, i);
+	}
+
+	// Wait for all threads to finish
+	for (auto &thread : thread_handles)
+	{
+		thread.join();
+	}
+}		
+</script></code></pre>
+				</section>
+				<section id="c++-barrier-test">
+					<h4>C++ Output</h4>
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers="5-16"><script type="text/template">
+Note: Google Test filter = BarrierExample.TestBarrierSynchronization
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from BarrierExample
+[ RUN      ] BarrierExample.TestBarrierSynchronization
+Thread 0 is doing some work before the barrier.
+Thread 1 is doing some work before the barrier.
+Thread 3 is doing some work before the barrier.
+Thread 2 is doing some work before the barrier.
+Thread 4 is doing some work before the barrier.
+Thread 4 is doing some work after the barrier.
+Thread 3 is doing some work after the barrier.
+Thread 0 is doing some work after the barrier.
+Thread 2 is doing some work after the barrier.
+Thread 1 is doing some work after the barrier.
+[       OK ] BarrierExample.TestBarrierSynchronization (0 ms)
+						</script></code></pre>
+					<!-- END C++ Barrier OUTPUT -->
+				</section>
+				<!-- END Barrier -->
 			</section>
 
 			<!-- Example of nested vertical slides -->
