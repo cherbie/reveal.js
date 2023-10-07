@@ -718,9 +718,203 @@ Thread 4 incremented sharedData to 5
 2 incremented sharedData to 5
 Final sharedData value: 5
 						</script></code></pre>
-					<!-- END C++ ATOMIC OUTPUT -->
+					<!-- END C++ MUTEX OUTPUT -->
 				</section>
 				<!-- END MUTEX -->
+			</section>
+
+			<section id="condvar">
+				<h2>Conditional Variable</h2>
+
+				<aside class="notes" data-markdown>
+					
+				</aside>
+				<section id="rust-condvar">
+					<h4>Rust</h4>
+					<pre><code class="language-rust" data-trim data-noescape data-line-numbers="|3|11|12-13|15-17|19-35|23-24|32-34|37-51|41-42|44-47|53-55"><script type="text/template">
+#[cfg(test)]
+mod tests {
+	use std::sync::{Arc, Condvar, Mutex};
+	use std::thread;
+
+	/// In Rust, you can use condition variables (CondVar) in combination with mutexes to
+	/// create synchronization mechanisms for managing thread communication and synchronization.
+	///
+	/// Here's an example of a Rust application using CondVar to coordinate two threads:
+	#[test]
+	fn test_condvar_consumer_producer_channel() {
+		// create shared data protected by a mutex
+		let data = Arc::new((Mutex::new(false), Condvar::new()));
+
+		// clone data for the producer and consumer
+		let data_producer = Arc::clone(&data);
+		let data_consumer = Arc::clone(&data);
+
+		// spawn the producer thread
+		let producer_thread_handle = thread::spawn(move || {
+			let (lock, cvar) = &*data_producer;
+
+			// lock the mutex
+			let mut started = lock.lock().unwrap();
+
+			// perform some work here
+			println!("Producer: Starting some work...");
+
+			// simulate work by sleeping
+			thread::sleep(std::time::Duration::from_secs(2));
+
+			// signal the consumer that work is done
+			*started = true;
+			cvar.notify_one();
+		});
+
+		// spawn the consumer thread
+		let consumer_thread_handle = thread::spawn(move || {
+			let (lock, cvar) = &*data_consumer;
+
+			// lock the mutex
+			let mut started = lock.lock().unwrap();
+
+			// wait for the producer to finish work
+			while !*started {
+				started = cvar.wait(started).unwrap();
+			}
+
+			// continue with consumer's work
+			println!("Consumer: Work completed!");
+		});
+
+		// wait for both threads to finish
+		producer_thread_handle.join().unwrap();
+		consumer_thread_handle.join().unwrap();
+	}
+}						
+					</script></code></pre>
+
+					<aside class="notes" data-markdown>
+						- In Rust, you can use condition variables (CondVar) in combination with mutexes to create synchronization mechanisms for managing thread communication and synchronization.
+					    - Here's an example of a Rust application using CondVar to coordinate two threads
+
+						### Consumer Thread
+						- `cvar.wait()`: Blocks the current thread until this condition variable receives a notification.
+						- `cvar.wait()`: This function will atomically unlock the mutex specified and **block** the _current thread_.
+						- Any calls to `notify_one` or `notify_all` which happen logically after the mutex is unlocked are candidates to _"wake this thread"_
+						- this is **not** a _spin-lock_
+					</aside>
+					<!-- section id="rust-condvar" -->
+				</section>
+
+				<section id="rust-condvar-test">
+					<h4>Rust Output</h4>
+
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers><script type="text/template">
+test condvar::tests::test_condvar_consumer_producer_channel ...
+Producer: Starting some work...
+Consumer: Work completed!
+ok
+						</script></code></pre>
+				</section>
+				<section id="c++-condvar">
+					<h4>C++</h4>
+					<pre><code class="language-c++" data-trim data-noescape data-line-numbers="4|10-15|19-39|41-63|23-31|33-34|45-56|49-55|66-73"><script type="text/template">
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <gtest/gtest.h>
+
+namespace
+{
+	// mutex to protect shared data
+	std::mutex mtx;
+	// condition variable for synchronization
+	std::condition_variable cv; 
+	// shared data (queue)
+	std::queue<int> data;
+
+	const int NUM_ITEMS = 5; // number of items to produce
+
+	inline void producer()
+	{
+		for (int i = 0; i < NUM_ITEMS; ++i)
+		{
+			// simulate producing an item
+			int item = i;
+			{
+				std::lock_guard<std::mutex> lock(mtx);
+
+				// add the item to the queue
+				data.push(item);
+				std::cout << "Produced: " << item << std::endl;
+			}
+
+			// notify the consumer that new data is available
+			cv.notify_one();
+
+			// simulate some work
+			std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		}
+	}
+
+	inline void consumer()
+	{
+		for (int i = 0; i < NUM_ITEMS; ++i)
+		{
+			int item;
+			{
+				std::unique_lock<std::mutex> lock(mtx);
+
+				// wait until there's data to consume
+				cv.wait(lock, []{ return !data.empty(); });
+
+				// get the item from the queue
+				item = data.front();
+				data.pop();
+			}
+
+			// process the item
+			std::cout << "Consumed: " << item << std::endl;
+
+			// simulate some work
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		}
+	}
+} // namespace ::
+
+TEST(CondvarExample, TestCondvarConsumerProducerChannel)
+{
+	std::thread producerThread(::producer);
+	std::thread consumerThread(::consumer);
+
+	producerThread.join();
+	consumerThread.join();
+}
+</script></code></pre>
+				</section>
+				<section id="c++-condvar-test">
+					<h4>C++ Output</h4>
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers="5-16"><script type="text/template">
+Note: Google Test filter = CondvarExample.TestCondvarConsumerProducerChannel
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from CondvarExample
+[ RUN      ] CondvarExample.TestCondvarConsumerProducerChannel
+Produced: 0
+Consumed: 0
+Produced: 1
+Produced: 2
+Consumed: 1
+Produced: 3
+Produced: 4
+Consumed: 2
+Consumed: 3
+Consumed: 4
+[       OK ] CondvarExample.TestCondvarConsumerProducerChannel (2521 ms)
+						</script></code></pre>
+					<!-- END C++ CONDVAR OUTPUT -->
+				</section>
+				<!-- END CONDVAR -->
 			</section>
 
 			<!-- Example of nested vertical slides -->
