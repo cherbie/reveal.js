@@ -727,7 +727,7 @@ Final sharedData value: 5
 				<h2>Conditional Variable</h2>
 
 				<aside class="notes" data-markdown>
-					
+
 				</aside>
 				<section id="rust-condvar">
 					<h4>Rust</h4>
@@ -792,13 +792,17 @@ mod tests {
 					</script></code></pre>
 
 					<aside class="notes" data-markdown>
-						- In Rust, you can use condition variables (CondVar) in combination with mutexes to create synchronization mechanisms for managing thread communication and synchronization.
-					    - Here's an example of a Rust application using CondVar to coordinate two threads
+						- In Rust, you can use condition variables (CondVar) in combination with mutexes to create
+						synchronization mechanisms for managing thread communication and synchronization.
+						- Here's an example of a Rust application using CondVar to coordinate two threads
 
 						### Consumer Thread
-						- `cvar.wait()`: Blocks the current thread until this condition variable receives a notification.
-						- `cvar.wait()`: This function will atomically unlock the mutex specified and **block** the _current thread_.
-						- Any calls to `notify_one` or `notify_all` which happen logically after the mutex is unlocked are candidates to _"wake this thread"_
+						- `cvar.wait()`: Blocks the current thread until this condition variable receives a
+						notification.
+						- `cvar.wait()`: This function will atomically unlock the mutex specified and **block** the
+						_current thread_.
+						- Any calls to `notify_one` or `notify_all` which happen logically after the mutex is unlocked
+						are candidates to _"wake this thread"_
 						- this is **not** a _spin-lock_
 					</aside>
 					<!-- section id="rust-condvar" -->
@@ -915,6 +919,136 @@ Consumed: 4
 					<!-- END C++ CONDVAR OUTPUT -->
 				</section>
 				<!-- END CONDVAR -->
+			</section>
+
+			<section id="condvar">
+				<h2>Read-Write Lock</h2>
+
+				<aside class="notes" data-markdown>
+					-
+				</aside>
+				<section id="rust-rwlock">
+					<h4>Rust</h4>
+					<pre><code class="language-rust" data-trim data-noescape data-line-numbers="3|8|9-10|12-15|17-21|33-38"><script type="text/template">
+#[cfg(test)]
+mod tests {
+	use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+	use std::thread;
+
+	/// `std::sync::RwLock` to demonstrate multiple readers and single writer
+	#[test]
+	fn test_rwlock_example() {
+		// create shared data protected by a RwLock
+		let data = Arc::new(RwLock::new(0));
+
+		// clone data for the readers and writer
+		let data_reader1 = Arc::clone(&data);
+		let data_reader2 = Arc::clone(&data);
+		let data_writer = Arc::clone(&data);
+
+		// spawn reader threads
+		let reader1 = thread::spawn(move || {
+			let read_lock: RwLockReadGuard<'_, i32> = data_reader1.read().unwrap();
+			println!("Reader 1: Value = {}", *read_lock);
+		});
+
+		let reader2 = thread::spawn(move || {
+			// multiple readers can acquire the value
+			let read_lock = data_reader2.read().unwrap();
+			println!("Reader 2: Value = {}", *read_lock);
+
+			// simulate some work
+			// ... writer cannot acquire lock until all readers are dropped
+			thread::sleep(std::time::Duration::from_secs(1));
+		});
+
+		// spawn a writer thread
+		let writer = thread::spawn(move || {
+			let mut write_lock: RwLockWriteGuard<'_, i32> = data_writer.write().unwrap();
+			*write_lock += 42;
+			println!("Writer: Value updated to {}", *write_lock);
+		});
+
+		// wait for all threads to finish
+		reader1.join().unwrap();
+		reader2.join().unwrap();
+		writer.join().unwrap();
+	}
+}
+					</script></code></pre>
+
+					<aside class="notes" data-markdown>
+						-
+					</aside>
+					<!-- section id="rust-rwlock" -->
+				</section>
+
+				<section id="rust-rwlock-test">
+					<h4>Rust Output</h4>
+
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers><script type="text/template">
+test rwlock::tests::test_rwlock_example ...
+Reader 1: Value = 0
+Writer: Value updated to 42
+Reader 2: Value = 42
+ok
+						</script></code></pre>
+				</section>
+				<section id="c++-rwlock">
+					<h4>C++</h4>
+					<pre><code class="language-c++" data-trim data-noescape data-line-numbers="2|7-28|9-11|14-19|21-27"><script type="text/template">
+#ifndef _H_SHARED_MUTEX
+#include <shared_mutex>
+#include <memory>
+
+namespace ThreadSafe
+{
+	class SharedData
+	{
+	private:
+		int m_data = 0;
+		std::shared_mutex m_rwlock;
+
+	public:
+		void increment()
+		{
+			// lock the mutex to protect the critical section
+			std::lock_guard<std::shared_mutex> guard(m_rwlock);
+			++m_data; // increment the shared data
+		}
+
+		int read()
+		{
+			std::shared_lock<std::shared_mutex> shared_lock(m_rwlock);
+			int value = m_data;
+			shared_lock.unlock();
+			return value;
+		}
+	};
+} // namespace ThreadSafe
+
+#endif // ifndef _H_SHARED_MUTEX
+</script></code></pre>
+				</section>
+				<section id="c++-rwlock-test">
+					<h4>C++ Output</h4>
+					<pre><code class="language-bash" data-trim data-noescape data-line-numbers="5-12"><script type="text/template">
+Note: Google Test filter = SharedMutexExample.TestIncrementRwLockSharedData
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SharedMutexExample
+[ RUN      ] SharedMutexExample.TestIncrementRwLockSharedData
+Thread 0 incremented sharedData to 1
+Thread Thread Thread 4Thread  incremented sharedData to 5
+1 incremented sharedData to 5
+3 incremented sharedData to 5
+2 incremented sharedData to 5
+Final sharedData value: 5
+[       OK ] SharedMutexExample.TestIncrementRwLockSharedData (5 ms)
+						</script></code></pre>
+					<!-- END C++ RWLock OUTPUT -->
+				</section>
+				<!-- END RWLock -->
 			</section>
 
 			<!-- Example of nested vertical slides -->
