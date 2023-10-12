@@ -349,13 +349,10 @@
 					<aside class="notes" data-markdown>
 						- Synchronization is the coordination of threads to ensure that they work together
 						properly.
-
-						... read slide
-
+						> ... read slide
 						- inconsistent data reads are the result of race conditions resulting from concurrent software
 						- these are very difficult to debug
 						- We need to be able to mitigate these risks with appropriate synchronization
-
 						- Synchronization can be achieved through various mechanisms such as locks, semaphores,
 						and conditional variables.
 					</aside>
@@ -372,9 +369,9 @@
 						- Communication between threads is another key principle of concurrency.
 						- Threads often need to exchange data or signals to coordinate their work.
 						- This can be achieved through:
-						- shared memory
-						- message passing
-						- inter-process communication techniques.
+						1. shared memory
+						2. message passing
+						3. inter-process communication techniques.
 
 						"channels"
 					</aside>
@@ -504,76 +501,6 @@ Final shared_data value: 5
 						</script></code></pre>
 					<!-- END C++ ATOMIC OUTPUT -->
 				</section>
-				<section id="rust-atomic">
-					<h4>Rust</h4>
-					<pre><code class="language-rust" data-trim data-noescape data-line-numbers="4|14-15|22-30|26-27"><script type="text/template">
-#[cfg(test)]
-mod tests {
-	use std::sync::{
-		atomic::{AtomicUsize, Ordering},
-		Arc,
-	};
-	use std::thread;
-
-	#[test]
-	fn test_atomic_count_across_threads() {
-		const COUNTER_START: usize = 0;
-		const NUM_THREADS: usize = 5;
-
-		// create an atomic integer for the counter
-		let counter = Arc::new(AtomicUsize::new(COUNTER_START));
-
-		let mut thread_handles = vec![];
-		for i in 0..NUM_THREADS {
-			let counter = Arc::clone(&counter);
-
-			// spawn a thread that increments the counter
-			let thread_handle = thread::spawn(move || {
-				// simulate some work
-				thread::sleep(std::time::Duration::from_millis(i.try_into().unwrap()));
-
-				// increment the counter atomically
-				counter.fetch_add(1, Ordering::Relaxed);
-
-				println!("Thread {} incremented the counter", i);
-			});
-
-			thread_handles.push(thread_handle);
-		}
-
-		// wait for all threads to finish
-		for handle in thread_handles {
-			handle.join().unwrap();
-		}
-
-		// access the final counter value
-		let final_counter = counter.load(Ordering::Relaxed);
-		println!("Final counter value: {}", final_counter);
-
-		assert_eq!(final_counter, COUNTER_START + NUM_THREADS);
-	}
-}
-					</script></code></pre>
-					<aside class="notes" data-markdown>
-						- a very similar interface to the c++ standard library
-					</aside>
-					<!-- section id="rust-atomic" -->
-				</section>
-
-				<section id="rust-atomic-test">
-					<h4>Rust Output</h4>
-
-					<pre><code class="language-bash" data-trim data-noescape data-line-numbers><script type="text/template">
-test atomic::tests::test_atomic_count_across_threads ...
-Thread 0 incremented the counter
-Thread 1 incremented the counter
-Thread 2 incremented the counter
-Thread 3 incremented the counter
-Thread 4 incremented the counter
-Final counter value: 5
-						</script></code></pre>
-				</section>
-				<!-- END ATOMICS -->
 			</section>
 
 			<section id="mutex">
@@ -589,6 +516,7 @@ Final counter value: 5
 						- a thread will attempt to obtain a _"lock"_ on the shared resource and then return the _"lock"_
 						on the resource once the critical section is executed
 
+						### Optional
 						- RAII guards (Resource Acquisition Is Initialisation)
 						- Refers to the scoped lifetime of a variable
 					</aside>
@@ -1027,81 +955,9 @@ Consumed: 4
 					</aside>
 
 				</section>
-				<section data-background-iframe="https://doc.rust-lang.org/std/sync/struct.RwLock.html">
+				<section data-background-iframe="https://en.cppreference.com/w/cpp/thread/shared_mutex">
 					<aside class="notes" data-markdown>
-						- ? rust docs make special mention of the priority policy
 						- poor code structure can lead to deadlock
-					</aside>
-				</section>
-				<section id="rust-rwlock">
-					<h4>Rust</h4>
-					<pre><code class="language-rust" data-trim data-noescape data-line-numbers="3|8|9-10|12-15|17-21|33-38"><script type="text/template">
-#[cfg(test)]
-mod tests {
-	use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
-	use std::thread;
-
-	/// `std::sync::RwLock` to demonstrate multiple readers and single writer
-	#[test]
-	fn test_rwlock_example() {
-		// create shared data protected by a RwLock
-		let data = Arc::new(RwLock::new(0));
-
-		// clone data for the readers and writer
-		let data_reader1 = Arc::clone(&data);
-		let data_reader2 = Arc::clone(&data);
-		let data_writer = Arc::clone(&data);
-
-		// spawn reader threads
-		let reader1 = thread::spawn(move || {
-			let read_lock: RwLockReadGuard<'_, i32> = data_reader1.read().unwrap();
-			println!("Reader 1: Value = {}", *read_lock);
-		});
-
-		let reader2 = thread::spawn(move || {
-			// multiple readers can acquire the value
-			let read_lock = data_reader2.read().unwrap();
-			println!("Reader 2: Value = {}", *read_lock);
-
-			// simulate some work
-			// ... writer cannot acquire lock until all readers are dropped
-			thread::sleep(std::time::Duration::from_secs(1));
-		});
-
-		// spawn a writer thread
-		let writer = thread::spawn(move || {
-			let mut write_lock: RwLockWriteGuard<'_, i32> = data_writer.write().unwrap();
-			*write_lock += 42;
-			println!("Writer: Value updated to {}", *write_lock);
-		});
-
-		// wait for all threads to finish
-		reader1.join().unwrap();
-		reader2.join().unwrap();
-		writer.join().unwrap();
-	}
-}
-					</script></code></pre>
-
-					<aside class="notes" data-markdown>
-						- This test spawns 3 threads consisting of two _'reader'_ threads and a _'writer'_ thread.
-						- We try to get the various reads and writes conflicting using thread sleeping
-					</aside>
-					<!-- section id="rust-rwlock" -->
-				</section>
-
-				<section id="rust-rwlock-test">
-					<h4>Rust Output</h4>
-
-					<pre><code class="language-bash" data-trim data-noescape data-line-numbers><script type="text/template">
-test rwlock::tests::test_rwlock_example ...
-Reader 1: Value = 0
-Writer: Value updated to 42
-Reader 2: Value = 42
-ok
-						</script></code></pre>
-					<aside class="notes" data-markdown>
-
 					</aside>
 				</section>
 				<section id="c++-rwlock">
@@ -1144,7 +1000,8 @@ namespace ThreadSafe
 						- As you can see in practice it effectively is a one-to-one swap with a regular mutex
 
 						## Differences
-						- new data structures need to be used to reflect the _'shared'_ nature of the _resource lock_
+						- new data structures need to be used to reflect the _'shared'_ nature of the read _resource
+						lock_
 						- `std::shared_lock` vs `std::lock_guard` vs `std::unique_lock`
 
 						## read()
@@ -1173,6 +1030,10 @@ Final sharedData value: 5
 						- As you can see there is rather useless standard output logs here
 						- You are just going to have to take my word for it ... or experiment with this repository
 						yourself :man_shrugging:
+						- Notice that 5 is logged for most threads?
+						- This is likely due to how the system prioritizes locking between shared and unique mutexes.
+						- Here it seems the writing thread was able to acquire an outwright lock delaying any reads by
+						threads
 					</aside>
 					<!-- END C++ RWLock OUTPUT -->
 				</section>
@@ -1272,77 +1133,6 @@ after wait
 ok
 						</script></code></pre>
 				</section>
-				<section id="c++-barrier">
-					<h4>C++</h4>
-					<pre><code class="language-c++" data-trim data-noescape data-line-numbers="4|9-10|12-21|16-17|24-39|28-32"><script type="text/template">
-#include <iostream>
-#include <thread>
-#include <vector>
-#include <barrier>
-#include <gtest/gtest.h>
-
-namespace
-{
-	const int NUM_THREADS = 5;
-	std::barrier barrier(NUM_THREADS);
-
-	void doWork(int id)
-	{
-		std::cout << "Thread " << id << " is doing some work before the barrier." << std::endl;
-
-		// All threads will wait here until all threads have reached this point
-		barrier.arrive_and_wait();
-
-		// This part of the code will execute only after all threads have reached the barrier
-		std::cout << "Thread " << id << " is doing some work after the barrier." << std::endl;
-	}
-} // namespace ::
-
-TEST(BarrierExample, TestBarrierSynchronization)
-{
-	std::vector<std::thread> thread_handles;
-
-	// Create and start threads
-	for (int i = 0; i < ::NUM_THREADS; ++i)
-	{
-		thread_handles.emplace_back(::doWork, i);
-	}
-
-	// Wait for all threads to finish
-	for (auto &thread : thread_handles)
-	{
-		thread.join();
-	}
-}		
-</script></code></pre>
-					<aside class="notes" data-markdown>
-						- the c++ testing case follows the exact same structure and we expect to make the exact same
-						observation
-					</aside>
-				</section>
-				<section id="c++-barrier-test">
-					<h4>C++ Output</h4>
-					<pre><code class="language-bash" data-trim data-noescape data-line-numbers="5-16"><script type="text/template">
-Note: Google Test filter = BarrierExample.TestBarrierSynchronization
-[==========] Running 1 test from 1 test suite.
-[----------] Global test environment set-up.
-[----------] 1 test from BarrierExample
-[ RUN      ] BarrierExample.TestBarrierSynchronization
-Thread 0 is doing some work before the barrier.
-Thread 1 is doing some work before the barrier.
-Thread 3 is doing some work before the barrier.
-Thread 2 is doing some work before the barrier.
-Thread 4 is doing some work before the barrier.
-Thread 4 is doing some work after the barrier.
-Thread 3 is doing some work after the barrier.
-Thread 0 is doing some work after the barrier.
-Thread 2 is doing some work after the barrier.
-Thread 1 is doing some work after the barrier.
-[       OK ] BarrierExample.TestBarrierSynchronization (0 ms)
-						</script></code></pre>
-					<!-- END C++ Barrier OUTPUT -->
-				</section>
-				<!-- END Barrier -->
 			</section>
 
 			<section id="synchronization-patterns">
@@ -1529,17 +1319,17 @@ private:
 						- Use of the mutex guard improves the robustness of the code
 
 						### Liabilities
-						1. pteontial for deadlocks when used recursively
+						1. potential for deadlocks when used recursively
 						2. limitations with language specific semantics
 					</aside>
 				</section>
 
 				<section>
-					<h2 class="!text-[#de411b]">Thread-Safe Interface Design Pattern</h2>
+					<h2 class="!text-[#de411b]">Thread-Safe Interface Pattern</h2>
 
 					<aside class="notes" data-markdown>
 						## Thread-Safe Interface Pattern
-						- Minimizes the locking overhead and ensures that intra-component method calls do not incur
+						- This pattern minimizes the locking overhead and ensures that intra-component method calls do not incur
 						‘self-deadlock’ by trying to reacquire a lock that a component already holds.
 						- When considering library interface design, multi-threaded components often contain multiple
 						publicly-accessible interface methods and private implementation methods that can alter the
@@ -1580,7 +1370,7 @@ private:
 						2. Thread-safe components should be designed to incur only minimal locking overhead
 
 						### Solution:
-						- You can structure all components that process intra-component method invocations according two
+						- The solution is to structure all components that process intra-component method invocations according two
 						design conventions:
 						1. **Interface methods check**: All interface methods, such as C++ public methods, should only
 						acquire/release component lock(s), thereby performing synchronization checks at the ‘border’ of
@@ -1677,7 +1467,7 @@ private:
 				</section>
 				<section>
 					<h4 class="!text-[#de411b]">Singleton.h</h4>
-					<pre><code class="language-c++" data-trim data-line-numbers data-noescape><script type="text/template">
+					<pre><code class="language-c++" data-trim data-line-numbers="4-13,17-18|21-22" data-noescape><script type="text/template">
 class Singleton
 {
 public:
@@ -1702,7 +1492,7 @@ private:
 Singleton::instance()->method_1();
 						</script></code></pre>
 					<aside class="notes" data-markdown>
-						- We will consider a `Singleton` pattern for our example use case
+						- We will consider the `Singleton` pattern for our example use case
 
 						### Singletons
 						- The `Singleton` pattern ensures a class has only one instance and provides a global access
@@ -1758,6 +1548,11 @@ Singleton::instance()->method_1();
 					<p class="fragment">...or maybe <a
 							href="https://stackoverflow.com/questions/2576022/efficient-thread-safe-singleton-in-c">do</a>?
 					</p>
+
+					<aside class="notes" data-markdown>
+						- So lets apply what we have learnt
+						- Let's protect the critical section with a mutex
+					</aside>
 				</section>
 
 				<section>
@@ -1796,11 +1591,12 @@ Singleton::instance()->method_1();
 					<p>Implement the <span class="text-[#b5533c]">first-in-time</span> flag.</p>
 
 					<aside class="notes" data-markdown>
+						- What is the recommended solution?
 						- the solution here is to implement a `first-time-in` flag.
-						- Basically, once the lock is acquired, recheck that the _instance_ has not been instantiated.
+						- Basically, in this case, once the lock is acquired, recheck that the _instance_ has not been instantiated yet.
 
 						## Discussion:
-						- So why we not need to do this potentially? ... well you tell me
+						- So why do we not need to do this potentially? ... well you tell me
 					</aside>
 				</section>
 				<!-- END synchronization patterns -->
